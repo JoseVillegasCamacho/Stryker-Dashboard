@@ -78,7 +78,7 @@ try:
             <div class="tie-box">
                 <h2>🔥 ¡EMPATE! 🔥</h2>
                 <p style="font-size: 20px;">Con <b>{int(max_aciertos)} aciertos</b>, nuestros campeones actuales son:</p>
-                <h3>✨ {' & '.join(lideres['Name'].tolist())}</h3>
+                <h3>✨ {' & '.join(lideres['Name'].tolist())} ✨</h3>
             </div>
             """, unsafe_allow_html=True)
         else:
