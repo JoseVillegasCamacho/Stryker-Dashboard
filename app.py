@@ -46,7 +46,7 @@ def app():
     st.markdown(f"""
     <div style="background-color: #FFB81C; padding: 20px; border-radius: 10px; text-align: center; color: black;">
         <h3>🔥 {msg} 🔥</h3>
-        <p>Con {max_aciertos} aciertos, nuestros campeones actuales son:</p>
+        <p>Con {max_aciertos} aciertos, nuestra campeona actual es:</p>
         <p><b>✨ {' & '.join(campeones)}</b></p>
     </div>
     """, unsafe_allow_html=True)
