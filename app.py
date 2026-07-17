@@ -2,123 +2,77 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Quiniela R7", layout="wide")
+st.set_page_config(layout="wide")
 
-# Estilos CSS con el color exacto solicitado
-st.markdown("""
-    <style>
-    .winner-box {
-        background-color: #FFB81C;
-        padding: 25px;
-        border-radius: 15px;
-        color: #000000;
-        text-align: center;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        margin-bottom: 25px;
-        border: 2px solid #e6a500;
+def app():
+    # Leer archivo
+    df = pd.read_excel('datos_reales.xlsx')
+    
+    # Filtrado inicial para asegurar que solo incluya los equipos correctos
+    df = df[df.iloc[:, 7].isin(['Credit Risk', 'Invoice Delivery'])]
+    
+    # Mapeo de ganadores
+    ganadores = {
+        '2026-07-07': {'Invoice Delivery': 'Raquel Sandí', 'Credit Risk': 'Leo Alvarado'},
+        '2026-07-08': {'Invoice Delivery': 'Deykell Wilson', 'Credit Risk': 'Wendys Flores'},
+        '2026-07-09': {'Invoice Delivery': 'Deykell Wilson', 'Credit Risk': 'Wendys Flores'},
+        '2026-07-14': {'Invoice Delivery': 'Deykell Wilson', 'Credit Risk': 'Guiselle Melendez'},
+        '2026-07-15': {'Invoice Delivery': 'Susana Mora', 'Credit Risk': 'Guiselle Melendez'},
+        '2026-07-16': {'Invoice Delivery': 'Jessica Esquivel', 'Credit Risk': 'Wendys Flores'}
     }
-    .tie-box {
-        background-color: #FFB81C;
-        padding: 25px;
-        border-radius: 15px;
-        color: #000000;
-        text-align: center;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        margin-bottom: 25px;
-        border: 2px solid #e6a500;
-    }
-    h2, h3 { color: #000000 !important; }
-    </style>
-""", unsafe_allow_html=True)
 
-@st.cache_data
-def cargar_y_procesar():
-    df = pd.read_excel('datos_reales.xlsx', dtype=str)
-    col_fecha = df.columns[6]
-    col_equipo = df.columns[7]
-    df = df[df[col_equipo].isin(['Credit Risk', 'Invoice Delivery'])]
-    
-    ganadores_por_fecha = {
-        "7": {"Invoice Delivery": "Raquel Sandí", "Credit Risk": "Leo Alvarado"},
-        "8": {"Invoice Delivery": "Deykell Wilson", "Credit Risk": "Wendys Flores"},
-        "9": {"Invoice Delivery": "Deykell Wilson", "Credit Risk": "Wendys Flores"}
-    }
-    mapeo_dia = {"6": "7", "7": "8", "8": "9"}
-    
-    def evaluar_acierto(row):
-        fecha_voto_raw = str(row[col_fecha])
-        equipo = str(row[col_equipo]).strip()
-        dia_voto = fecha_voto_raw.split('-')[2].split(' ')[0].lstrip('0')
-        dia_evento = mapeo_dia.get(dia_voto)
-        
-        if dia_evento and equipo in ganadores_por_fecha.get(dia_evento, {}):
-            col_voto = next((c for c in df.columns if equipo in c), None)
-            voto = str(row.get(col_voto, "")).strip()
-            ganador_real = ganadores_por_fecha[dia_evento][equipo]
-            return 1 if ganador_real.lower() in voto.lower() else 0
+    def calcular_punto(row):
+        fecha_val = pd.to_datetime(row.iloc[6]).strftime('%Y-%m-%d')
+        equipo = str(row.iloc[7]).strip()
+        if fecha_val in ganadores and equipo in ganadores[fecha_val]:
+            objetivo = ganadores[fecha_val][equipo]
+            # Buscamos en las columnas de votos (del índice 8 al 11)
+            for i in range(8, 12):
+                if str(row.iloc[i]).strip() == objetivo: return 1
         return 0
 
-    df["Aciertos"] = df.apply(evaluar_acierto, axis=1)
-    return df
-
-try:
-    df = cargar_y_procesar()
-    leaderboard = df.groupby("Name")["Aciertos"].sum().reset_index().sort_values(by="Aciertos", ascending=False)
+    df['Aciertos'] = df.apply(calcular_punto, axis=1)
     
+    # --- UI ESTÉTICA ---
     st.title("Stryker")
     st.subheader("🏆 LEADERBOARD SEMANAL: R7 DRESS TO DEPLOY")
-    
-    # UI ESTÉTICA
-    if not leaderboard.empty:
-        max_aciertos = leaderboard['Aciertos'].max()
-        lideres = leaderboard[leaderboard['Aciertos'] == max_aciertos]
-        
-        if len(lideres) > 1:
-            st.markdown(f"""
-            <div class="tie-box">
-                <h2>🔥 ¡EMPATE! 🔥</h2>
-                <p style="font-size: 20px;">Con <b>{int(max_aciertos)} aciertos</b>, nuestros campeones actuales son:</p>
-                <h3>✨ {' & '.join(lideres['Name'].tolist())} ✨</h3>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="winner-box">
-                <h2>👑 ¡LÍDER ABSOLUTO! 👑</h2>
-                <p style="font-size: 24px;"><b>{lideres.iloc[0]['Name']}</b></p>
-                <p style="font-size: 18px;">Dominando con <b>{int(max_aciertos)} aciertos</b></p>
-            </div>
-            """, unsafe_allow_html=True)
 
-    st.markdown("---")
+    # Banner de Campeones
+    res = df.groupby(df.columns[4])['Aciertos'].sum().reset_index()
+    max_aciertos = res['Aciertos'].max()
+    campeones = res[res['Aciertos'] == max_aciertos]['Name'].tolist()
     
-    # Líderes por Equipo (Más juntos)
-    st.subheader("🎯 Líderes por Equipo")
-    _, c_cr, c_id, _ = st.columns([1, 2, 2, 1])
-    
-    equipos = {'Credit Risk': c_cr, 'Invoice Delivery': c_id}
-    for equipo, col in equipos.items():
-        df_equipo = df[df[df.columns[7]] == equipo]
-        lb_equipo = df_equipo.groupby("Name")["Aciertos"].sum().reset_index().sort_values(by="Aciertos", ascending=False)
-        
-        if not lb_equipo.empty:
-            max_eq = lb_equipo['Aciertos'].max()
-            lideres_eq = lb_equipo[lb_equipo['Aciertos'] == max_eq]
-            col.metric(f"{equipo}", f"{int(max_eq)} aciertos", f"{', '.join(lideres_eq['Name'].tolist())}")
+    msg = "¡EMPATE!" if len(campeones) > 1 else "¡CAMPEÓN!"
+    st.markdown(f"""
+    <div style="background-color: #FFB81C; padding: 20px; border-radius: 10px; text-align: center; color: black;">
+        <h3>🔥 {msg} 🔥</h3>
+        <p>Con {max_aciertos} aciertos, nuestros campeones actuales son:</p>
+        <p><b>✨ {' & '.join(campeones)}</b></p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    
-    # Clasificación y Gráfico
-    c_tabla, c_grafico = st.columns([1, 1])
-    with c_tabla:
+    # Líderes por Equipo
+    st.markdown("### 🎯 Líderes por Equipo")
+    c1, c2 = st.columns(2)
+    for i, equipo in enumerate(['Credit Risk', 'Invoice Delivery']):
+        subset = df[df.iloc[:, 7] == equipo].groupby(df.columns[4])['Aciertos'].sum()
+        sub = subset.idxmax()
+        val = subset.max()
+        with (c1 if i == 0 else c2):
+            st.metric(equipo, f"{val} aciertos", sub)
+
+    # Clasificación y Rendimiento
+    c3, c4 = st.columns(2)
+    with c3:
         st.markdown("### 📋 Clasificación Completa")
-        st.dataframe(leaderboard, hide_index=True, use_container_width=True)
-    with c_grafico:
+        st.dataframe(res.sort_values(by='Aciertos', ascending=False), use_container_width=True, hide_index=True)
+    with c4:
         st.markdown("### 📊 Rendimiento por Equipo")
-        # Gráfico con color corporativo
-        fig = px.bar(df.groupby(df.columns[7])["Aciertos"].sum().reset_index(), 
-                     x=df.columns[7], y="Aciertos", color_discrete_sequence=['#FFB81C'])
+        fig = px.bar(df.groupby(df.columns[7])['Aciertos'].sum().reset_index(), 
+                     x=df.columns[7], y='Aciertos', color_discrete_sequence=['#FFB81C'])
+        # Corrección: Forzamos el paso (dtick) a 1 para que sea 1 a 1
+        fig.update_yaxes(dtick=1)
+        fig.update_layout(plot_bgcolor='white', paper_bgcolor='white')
         st.plotly_chart(fig, use_container_width=True)
 
-except Exception as e:
-    st.error(f"Error técnico: {e}")
+app()
